@@ -1,118 +1,148 @@
+# Find some really good tutorial and implement single agent learning
+# https://docs.ray.io/en/latest/ray-core/examples/plot_pong_example.html
+from impl_config import EnvParam
+from luxai_s2_patch import install_patch
+from functools import partial
+from helpers.feature_parser import LuxFeature
+import lux.kit
+import torch
 from typing import Any
 from luxai_s2.state.state import ObservationStateDict
-from luxai_s2.spaces.obs_space import get_obs_space
-from stable_baselines3 import A2C
-from stable_baselines3.common.env_util import make_vec_env
-from stable_baselines3.common.monitor import Monitor
-from stable_baselines3.common.policies import BaseFeaturesExtractor
-import gym
+from luxai_s2.env import LuxAI_S2
+import gymnasium as gym
+import gymnasium.spaces
 import numpy as np
-
+from agent import Agent
+from lux.config import EnvConfig
 from lux.utils import my_turn_to_place_factory
+
+
 from lux.unit import Unit
+from ray.rllib.algorithms.ppo import PPOConfig
+from ray.tune.logger import pretty_print
 
+from ray.rllib.core.rl_module.torch.torch_rl_module import TorchRLModule
+from ray.rllib.core.rl_module.rl_module import RLModuleConfig
+from ray.rllib.algorithms import PPO
+from ray.rllib.utils.nested_dict import NestedDict
+from typing import Mapping
+from ray.rllib.core.rl_module.marl_module import MultiAgentRLModuleSpec
+from ray.rllib.core.rl_module.rl_module import SingleAgentRLModuleSpec
+from policy.spaces import get_observation_space, get_action_space
+
+
+MY_PLAYER = 'player_0'
+
+# TODO
+# Based on available code:
+# - find how they handle obs space
+# - run training
+
+
+""""
+Build custom obs space (steal from the baseline)
+Pass it to the model in some way (run run ru n)
+Run the training!!!. 
+
+
+
+How to access 
 """
-Stages: 
-1. model responsible for control of one single robot 
-2. implement some method for communication
-"""
 
 
-# dict(vf=[<value layer sizes>], pi=[<policy layer sizes>])
+class AgentModule(TorchRLModule):
+    def __init__(self, config: RLModuleConfig, agent: Agent) -> None:
+        super().__init__(config)
+        self.agent = agent
+        self._parameters = self.agent.net.state_dict()
+
+    # @override(TorchRLModule)
+    # TODO: hack
+    def set_state(self, state_dict: Mapping[str, Any]) -> None:
+        self.load_state_dict(state_dict, False)
+
+    def _forward_inference(self, batch: NestedDict, **kwargs):
+        with torch.no_grad():
+            return self._forward_train(batch, **kwargs)
+
+    def _forward_exploration(self, batch: NestedDict, **kwargs):
+        with torch.no_grad():
+            return self._forward_train(batch, **kwargs)
+
+    def _forward_train(self, batch: NestedDict, **kwargs) -> Mapping[str, Any]:
+        actions = self.agent.act(0, batch)
+        return {
+            "actions": actions
+        }
 
 
-class SingleRobotController(gym.Wrapper):
-    def __init__(self, env: gym.Env):
-        super().__init__(env)
-        self.env = env
-        self.prev_step_metrics = None
+class RayWrapper(gym.Env):
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__()
+        self.lux_env = LuxAI_S2(*args, **kwargs)
+        self.player_id = "player_0"
+        self.opponent_id = "player_1"
+        self.agent = Agent(self.player_id, self.lux_env.env_cfg, self.lux_env)
 
-        directions = ['left', 'top', 'right', 'bottom', 'self']
-        resources = ['water', 'metal', 'ore', 'ice', 'power']
+    def reset(self):
+        obs, _ = self.lux_env.reset()
+        game_state = lux.kit.obs_to_game_state(0, self.lux_env.env_cfg, obs)
+        while self.lux_env.state.real_env_steps < 0:
+            my_action = self.agent.early_setup(
+                game_state.env_steps, obs[self.player_id])
+            obs, *other = self.lux_env.step({
+                self.player_id: my_action,
+                self.opponent_id: dict()
+            })
+            game_state = lux.kit.obs_to_game_state(
+                game_state.env_steps, self.lux_env.env_cfg, obs)
 
-        self.action_space = gym.spaces.Discrete(
-            len(directions) * len(resources)  # transfer
-            +
-            len(directions)  # move
-            +
-            1  # recharge
-        )
+        return (obs, *other)
 
-        self.observation_space = gym.spaces.Box(0, 100, shape=(10, 10))
-        # get_obs_space(
-        #     config=self.env_cfg, agent_names=self.possible_agents
-        # )
+    def step(self, action: Any) -> Any:
+        obs, *other = self.lux_env.step(
+            {'player_0': dict(), 'player_1': dict()})
+        return (obs, *other)
 
-    def factory_placement_policy(player, obs: ObservationStateDict):
-        potential_spawns = np.array(
-            list(
-                zip(*np.where(obs["board"]["valid_spawns_mask"] == 1)))
-        )
-        spawn_loc = potential_spawns[
-            np.random.randint(0, len(potential_spawns))
-        ]
-        return dict(spawn=spawn_loc, metal=150, water=150)
-
-    def bid_policy(player, obs: ObservationStateDict):
-        faction = "AlphaStrike"
-        if player == "player_1":
-            faction = "MotherMars"
-        return dict(bid=0, faction=faction)
-
-    def action_to_lux_action(self, action):
-
-        return np.array()
-
-    def step(self, action: int):
-        agent = "player_0"
-        lux_action = dict()
-        for agent in self.env.agents:
-            lux_action[agent] = self.action_to_lux_action(action)
-        obs, reward, done, info = self.env.step(lux_action)
-        return obs, reward, done, info
-
-    # not controlling factory placement
-
-    def reset(self, **kwargs):
-        obs = self.env.reset(**kwargs)
-        action = {}
-        for agent in self.env.agents:
-            action[agent] = self.bid_policy(agent, obs)
-        obs, _, _, _ = self.env.step(action)
-        while self.env.state.real_env_steps < 0:
-            action = {}
-            for agent in self.env.agents:
-                if my_turn_to_place_factory(obs["player_0"]["teams"][agent]["place_first"], self.env.state.env_steps):
-                    action[agent] = self.factory_placement_policy(
-                        agent, obs[agent])
-                else:
-                    action[agent] = {}
-        obs, _, _, _ = self.env.step(action)
-        return obs
-
-
-def make_env(max_episode_steps=1000):
-    env_id = "LuxAI_S2-v0"
-    env = gym.make(env_id, verbose=0, collect_stats=True,
-                   FACTORY_WATER_CONSUMPTION=0, MAX_FACTORIES=3)
-    env = gym.wrappers.TimeLimit(env, max_episode_steps=max_episode_steps)
-    env = Monitor(env)
-    env = SingleRobotController(env)
-    return env
+    def render(self, mode: str = 'human') -> Any:
+        return self.lux_env.render(mode)
 
 
 def train():
-    # Parallel environments
-    env = make_env()
-    model = A2C("MlpPolicy", env, verbose=1)
-    print(model.policy)
-    # model.learn(total_timesteps=25000)
-    # model.save("a2c_mimic")
+    env = RayWrapper(verbose=3, collect_stats=True,
+                     FACTORY_WATER_CONSUMPTION=0)
+    module_spec = SingleAgentRLModuleSpec(
+        module_class=partial(
+            AgentModule, agent=env.agent),
+        observation_space=env.observation_space,
+        action_space=env.action_space,
+    )
+
+    # spec.build().parameters()
+    config = (PPOConfig()
+              .experimental(_enable_new_api_stack=True, _disable_preprocessor_api=True, _disable_initialize_loss_from_dummy_batch=True)
+              .environment(env=RayWrapper,
+                           disable_env_checking=True,
+                           env_config={
+                               "verbose": 0,
+                               "collect_stats": True,
+                               "FACTORY_WATER_CONSUMPTION": 0,
+                               "max_episode_steps": 1000,
+                               "BIDDING_SYSTEM": False})
+              .rl_module(
+                  rl_module_spec=module_spec,
+    )
+        .rollouts(num_rollout_workers=0)
+
+    )
+
+    algo = config.build()
+
+    for _ in range(10):
+        result = algo.train()
+        print(pretty_print(result))
 
 
 if __name__ == "__main__":
-    gym.register(
-        id="LuxAI_S2-v0",
-        entry_point="luxai_s2.env:LuxAI_S2",
-    )
+    # install_patch()
     train()

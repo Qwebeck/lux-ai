@@ -93,7 +93,7 @@ class FeatureParser:
             'lichen_count',
         ]
 
-    def parse(self, obs: dict, env_cfg: EnvConfig):
+    def parse(self, obs: dict, env_cfg: EnvConfig) -> tuple[list[LuxFeature], dict]:
         all_feature = []
         for player, player_obs in obs.items():
             env_step = player_obs['real_env_steps'] + \
@@ -106,48 +106,48 @@ class FeatureParser:
             'player_0', 'player_1']}
         return all_feature, global_info
 
-    # def _get_info(self, player: str, obs: lux.kit.GameState):
-    #     # Assumption: returns information that may be used during execution
-    #     global_info = {k: 0 for k in self.global_info_names}
-    #     factories = list(obs.factories[player].values())
-    #     units = list(obs.units[player].values())
+    def _get_info(self, player: str, obs: lux.kit.GameState):
+        # Assumption: returns information that may be used during execution
+        global_info = {k: 0 for k in self.global_info_names}
+        factories = list(obs.factories[player].values())
+        units = list(obs.units[player].values())
 
-    #     global_info['light_count'] = sum(u.unit_type == 'LIGHT' for u in units)
-    #     global_info['heavy_count'] = sum(u.unit_type == 'HEAVY' for u in units)
-    #     global_info['factory_count'] = len(factories)
+        global_info['light_count'] = sum(u.unit_type == 'LIGHT' for u in units)
+        global_info['heavy_count'] = sum(u.unit_type == 'HEAVY' for u in units)
+        global_info['factory_count'] = len(factories)
 
-    #     global_info['unit_ice'] = sum(u.cargo.ice for u in units)
-    #     global_info['unit_ore'] = sum(u.cargo.ore for u in units)
-    #     global_info['unit_water'] = sum(u.cargo.water for u in units)
-    #     global_info['unit_metal'] = sum(u.cargo.metal for u in units)
-    #     global_info['unit_power'] = sum(u.power for u in units)
+        global_info['unit_ice'] = sum(u.cargo.ice for u in units)
+        global_info['unit_ore'] = sum(u.cargo.ore for u in units)
+        global_info['unit_water'] = sum(u.cargo.water for u in units)
+        global_info['unit_metal'] = sum(u.cargo.metal for u in units)
+        global_info['unit_power'] = sum(u.power for u in units)
 
-    #     global_info['factory_ice'] = sum(f.cargo.ice for f in factories)
-    #     global_info['factory_ore'] = sum(f.cargo.ore for f in factories)
-    #     global_info['factory_water'] = sum(f.cargo.water for f in factories)
-    #     global_info['factory_metal'] = sum(f.cargo.metal for f in factories)
-    #     global_info['factory_power'] = sum(f.power for f in factories)
+        global_info['factory_ice'] = sum(f.cargo.ice for f in factories)
+        global_info['factory_ore'] = sum(f.cargo.ore for f in factories)
+        global_info['factory_water'] = sum(f.cargo.water for f in factories)
+        global_info['factory_metal'] = sum(f.cargo.metal for f in factories)
+        global_info['factory_power'] = sum(f.power for f in factories)
 
-    #     global_info['total_ice'] = global_info['unit_ice'] + \
-    #         global_info['factory_ice']
-    #     global_info['total_ore'] = global_info['unit_ore'] + \
-    #         global_info['factory_ore']
-    #     global_info['total_water'] = global_info['unit_water'] + \
-    #         global_info['factory_water']
-    #     global_info['total_metal'] = global_info['unit_metal'] + \
-    #         global_info['factory_metal']
-    #     global_info['total_power'] = global_info['unit_power'] + \
-    #         global_info['factory_power']
+        global_info['total_ice'] = global_info['unit_ice'] + \
+            global_info['factory_ice']
+        global_info['total_ore'] = global_info['unit_ore'] + \
+            global_info['factory_ore']
+        global_info['total_water'] = global_info['unit_water'] + \
+            global_info['factory_water']
+        global_info['total_metal'] = global_info['unit_metal'] + \
+            global_info['factory_metal']
+        global_info['total_power'] = global_info['unit_power'] + \
+            global_info['factory_power']
 
-    #     lichen = obs.board.lichen
-    #     lichen_strains = obs.board.lichen_strains
-    #     if factories:
-    #         lichen_count = sum(
-    #             [np.sum(lichen[lichen_strains == f.strain_id]) for f in factories])
-    #         global_info['lichen_count'] = lichen_count
-    #     else:
-    #         global_info['lichen_count'] = 0
-    #     return global_info
+        lichen = obs.board.lichen
+        lichen_strains = obs.board.lichen_strains
+        if factories:
+            lichen_count = sum(
+                [np.sum(lichen[lichen_strains == f.strain_id]) for f in factories])
+            global_info['lichen_count'] = lichen_count
+        else:
+            global_info['lichen_count'] = 0
+        return global_info
 
     def _get_map_features(self, obs: lux.kit.GameState, player: str):
         # Assumption: returns features used for predictions
