@@ -80,7 +80,7 @@ def get_single_observation_space():
         9999
     ]
     global_feature_space = spaces.MultiDiscrete(
-        np.array(global_feature_space), dtype=np.float64)
+        np.array(global_feature_space), dtype=np.float32)
 
     map_featrue_names = {
         'ice': 9999,
@@ -117,17 +117,17 @@ def get_single_observation_space():
     map_featrue_space = np.tile(
         np.array(list(map_featrue_names.values())).reshape(30, 1, 1), (1, 48, 48))
     map_featrue_space = spaces.MultiDiscrete(
-        map_featrue_space, dtype=np.float64)
+        map_featrue_space, dtype=np.float32)
 
     action_feature_space = spaces.Dict(
         {
-            'unit_indicator': spaces.MultiDiscrete(np.full((48, 48), 2), dtype=np.float64),
-            'type': spaces.MultiDiscrete(np.full((48, 48, 20), 7), dtype=np.float64),
-            'direction': spaces.MultiDiscrete(np.full((48, 48, 20), 5), dtype=np.float64),
-            'resource': spaces.MultiDiscrete(np.full((48, 48, 20), 5), dtype=np.float64),
-            'amount': spaces.MultiDiscrete(np.full((48, 48, 20), 10), dtype=np.float64),
-            'repeat': spaces.MultiDiscrete(np.full((48, 48, 20), 2), dtype=np.float64),
-            'n': spaces.MultiDiscrete(np.full((48, 48, 20), 9999), dtype=np.float64)
+            'unit_indicator': spaces.MultiDiscrete(np.full((48, 48), 2), dtype=np.float32),
+            'type': spaces.MultiDiscrete(np.full((48, 48, 20), 7), dtype=np.float32),
+            'direction': spaces.MultiDiscrete(np.full((48, 48, 20), 5), dtype=np.float32),
+            'resource': spaces.MultiDiscrete(np.full((48, 48, 20), 5), dtype=np.float32),
+            'amount': spaces.MultiDiscrete(np.full((48, 48, 20), 10), dtype=np.float32),
+            'repeat': spaces.MultiDiscrete(np.full((48, 48, 20), 2), dtype=np.float32),
+            'n': spaces.MultiDiscrete(np.full((48, 48, 20), 9999), dtype=np.float32)
         }
     )
     obs_space = spaces.Dict(
@@ -151,8 +151,8 @@ def get_action_space(rule_based_early_step):
                           resource_space, amount_space, repeat_space, n_space])
 
     action_space = {
-        "factory_act": spaces.MultiDiscrete(np.full((48, 48), 4), dtype=np.float64),
-        "unit_act": spaces.MultiDiscrete(unit_space, dtype=np.float64),
+        "factory_act": spaces.MultiDiscrete(np.full((48, 48), 4), dtype=np.float32),
+        "unit_act": spaces.MultiDiscrete(unit_space, dtype=np.float32),
     }
     if not rule_based_early_step:
         action_space.update(

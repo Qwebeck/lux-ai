@@ -1,3 +1,4 @@
+from collections import OrderedDict
 from typing import NamedTuple
 import numpy as np
 from lux.config import EnvConfig
@@ -166,14 +167,14 @@ class FeatureParser:
         map_feature['lichen_strains_own'] = sum(
             [obs.board.lichen_strains ==
                 f.strain_id for f in obs.factories[player].values()]
-            if obs.factories
-            else np.zeros_like(obs.board.lichen_strains, dtype=np.float32)
+            if obs.factories[player]
+            else [np.zeros_like(obs.board.lichen_strains, dtype=np.float32)]
         )
-        map_feature['lichen_strains_enemy'] = sum(
+        map_feature['lichen_strains_enm'] = sum(
             [obs.board.lichen_strains ==
                 f.strain_id for f in obs.factories[enemy].values()]
-            if obs.factories
-            else np.zeros_like(obs.board.lichen_strains, dtype=np.float32)
+            if obs.factories[player]
+            else [np.zeros_like(obs.board.lichen_strains, dtype=np.float32)]
         )
 
         # NOTE: for some reason we pay attention only to valid region
@@ -246,7 +247,7 @@ class FeatureParser:
                 map_feature['unit_heavy'][x, y] = unit.unit_type == 'HEAVY'
                 assert unit.unit_type in ["LIGHT", "HEAVY"]
 
-        action_feature = {
+        action_feature = OrderedDict({
             'unit_indicator': np.zeros_like(obs.board.ice, dtype=np.int16),
             'type': np.zeros((env_cfg.map_size, env_cfg.map_size, env_cfg.UNIT_ACTION_QUEUE_SIZE), dtype=np.int16),
             'direction': np.zeros((env_cfg.map_size, env_cfg.map_size, env_cfg.UNIT_ACTION_QUEUE_SIZE), dtype=np.int16),
@@ -254,7 +255,7 @@ class FeatureParser:
             'amount': np.zeros((env_cfg.map_size, env_cfg.map_size, env_cfg.UNIT_ACTION_QUEUE_SIZE), dtype=np.int16),
             'repeat': np.zeros((env_cfg.map_size, env_cfg.map_size, env_cfg.UNIT_ACTION_QUEUE_SIZE), dtype=np.int16),
             'n': np.zeros((env_cfg.map_size, env_cfg.map_size, env_cfg.UNIT_ACTION_QUEUE_SIZE), dtype=np.int16),
-        }
+        })
         empty_action = [0] * 6
         for units in obs.units.values():
             for unit in units.values():
@@ -327,7 +328,8 @@ class FeatureParser:
             global_feature[f'robot_total_metal_{own_enm}'] = global_feature[
                 f'robot_total_metal_{own_enm}'] / light_cfg.CARGO_SPACE
 
-        global_feature = np.array(list(global_feature.values()))
-        map_feature = np.array(list(map_feature.values()))
+        global_feature = np.array(
+            list(global_feature.values()), dtype=np.float32)
+        map_feature = np.array(list(map_feature.values()), dtype=np.float32)
 
         return LuxFeature(global_feature, map_feature, action_feature)

@@ -5,7 +5,7 @@ from scipy import ndimage
 import scipy
 
 
-class Player:
+class EarlySetupPlayer:
     def __init__(self, player: str, env_cfg: EnvConfig) -> None:
         self.player = player
         self.opp_player = "player_1" if self.player == "player_0" else "player_0"
@@ -16,7 +16,7 @@ class Player:
         ice_log_weight = 1
         ore_log_weight = 0.5
         rubble_weight = 0.1
-        sigma = 3  # ??
+        sigma = 3
         if step == 0:
             # random bid
             bid_choice = [-2, 0, 2]

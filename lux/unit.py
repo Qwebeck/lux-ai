@@ -46,22 +46,19 @@ class Unit:
 
         return math.floor(self.unit_cfg.MOVE_COST + self.unit_cfg.RUBBLE_MOVEMENT_COST * rubble_at_target)
 
-    @staticmethod
-    def move(direction, repeat=0, n=1):
+    def move(self, direction, repeat=0, n=1):
         if isinstance(direction, int):
             direction = direction
         else:
             pass
         return np.array([0, direction, 0, 0, repeat, n])
 
-    @staticmethod
-    def transfer(transfer_direction, transfer_resource, transfer_amount, repeat=0, n=1):
+    def transfer(self, transfer_direction, transfer_resource, transfer_amount, repeat=0, n=1):
         assert transfer_resource < 5 and transfer_resource >= 0
         assert transfer_direction < 5 and transfer_direction >= 0
         return np.array([1, transfer_direction, transfer_resource, transfer_amount, repeat, n])
 
-    @staticmethod
-    def pickup(pickup_resource, pickup_amount, repeat=0, n=1):
+    def pickup(self, pickup_resource, pickup_amount, repeat=0, n=1):
         assert pickup_resource < 5 and pickup_resource >= 0
         return np.array([2, 0, pickup_resource, pickup_amount, repeat, n])
 

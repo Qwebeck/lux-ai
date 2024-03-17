@@ -1,8 +1,14 @@
-# Competition file supplied by Competition hosts
+import dataclasses
+from argparse import Namespace
+from dataclasses import dataclass
+from typing import Dict, List
 
-from __future__ import annotations
 
-from dataclasses import dataclass, field
+def convert_dict_to_ns(x):
+    if isinstance(x, dict):
+        for k in x:
+            x[k] = convert_dict_to_ns(x)
+        return Namespace(x)
 
 
 @dataclass
@@ -23,55 +29,12 @@ class UnitConfig:
     RUBBLE_AFTER_DESTRUCTION: int = 1
     ACTION_QUEUE_POWER_COST: int = 1
 
-    def __hash__(self) -> int:
-        return self.DIG_COST
-
-    def __eq__(self, __value: UnitConfig) -> bool:
-        return self.DIG_COST == __value.DIG_COST
-
-
-LIGHT_CONFIG = UnitConfig(
-    METAL_COST=10,
-    POWER_COST=50,
-    INIT_POWER=50,
-    CARGO_SPACE=100,
-    BATTERY_CAPACITY=150,
-    CHARGE=1,
-    MOVE_COST=1,
-    RUBBLE_MOVEMENT_COST=0.05,
-    DIG_COST=5,
-    SELF_DESTRUCT_COST=5,
-    DIG_RUBBLE_REMOVED=2,
-    DIG_RESOURCE_GAIN=2,
-    DIG_LICHEN_REMOVED=10,
-    RUBBLE_AFTER_DESTRUCTION=1,
-    ACTION_QUEUE_POWER_COST=1,
-)
-
-HEAVY_CONFIG = UnitConfig(
-    METAL_COST=100,
-    POWER_COST=500,
-    INIT_POWER=500,
-    CARGO_SPACE=1000,
-    BATTERY_CAPACITY=3000,
-    CHARGE=10,
-    MOVE_COST=20,
-    RUBBLE_MOVEMENT_COST=1,
-    DIG_COST=60,
-    SELF_DESTRUCT_COST=100,
-    DIG_RUBBLE_REMOVED=20,
-    DIG_RESOURCE_GAIN=20,
-    DIG_LICHEN_REMOVED=100,
-    RUBBLE_AFTER_DESTRUCTION=10,
-    ACTION_QUEUE_POWER_COST=10,
-)
-
 
 @dataclass
 class EnvConfig:
-    # various options that can be configured if needed
+    ## various options that can be configured if needed
 
-    # Variable parameters that don't affect game logic much ###
+    ### Variable parameters that don't affect game logic much ###
     max_episode_length: int = 1000
     map_size: int = 48
     verbose: int = 1
@@ -80,7 +43,7 @@ class EnvConfig:
     # During online competition this is set to True
     validate_action_space: bool = True
 
-    # Constants
+    ### Constants ###
     # you can only ever transfer in/out 1000 as this is the max cargo space.
     max_transfer_amount: int = 10000
     MIN_FACTORIES: int = 2
@@ -91,11 +54,12 @@ class EnvConfig:
 
     MAX_RUBBLE: int = 100
     FACTORY_RUBBLE_AFTER_DESTRUCTION: int = 50
-    # amount of water and metal units given to each factory
-    INIT_WATER_METAL_PER_FACTORY: int = 150
+    INIT_WATER_METAL_PER_FACTORY: int = (
+        150  # amount of water and metal units given to each factory
+    )
     INIT_POWER_PER_FACTORY: int = 1000
 
-    # LICHEN
+    #### LICHEN ####
     MIN_LICHEN_TO_SPREAD: int = 20
     LICHEN_LOST_WITHOUT_WATER: int = 1
     LICHEN_GAINED_WITH_WATER: int = 1
@@ -105,10 +69,10 @@ class EnvConfig:
     # cost of watering with a factory is `ceil(# of connected lichen tiles) / (this factor) + 1`
     LICHEN_WATERING_COST_FACTOR: int = 10
 
-    # Bidding System
+    #### Bidding System ####
     BIDDING_SYSTEM: bool = True
 
-    # Factories
+    #### Factories ####
     FACTORY_PROCESSING_RATE_WATER: int = 100
     ICE_WATER_RATIO: int = 4
     FACTORY_PROCESSING_RATE_METAL: int = 50
@@ -122,22 +86,51 @@ class EnvConfig:
     # game design note: with a positve water consumption, game becomes quite hard for new competitors.
     # so we set it to 0
 
-    # Collision Mechanics
+    #### Collision Mechanics ####
     POWER_LOSS_FACTOR: float = 0.5
 
-    LIGHT_ROBOT: UnitConfig = field(default=LIGHT_CONFIG)
-
-    HEAVY_ROBOT: UnitConfig = field(default=HEAVY_CONFIG)
-
-    @classmethod
-    def get_unit_config(cls, unit_type: str) -> UnitConfig:
-        if unit_type == "LIGHT":
-            return cls.LIGHT_ROBOT
-        else:
-            return cls.HEAVY_ROBOT
+    #### Units ####
+    ROBOTS: Dict[str, UnitConfig] = dataclasses.field(
+        default_factory=lambda: dict(
+            LIGHT=UnitConfig(
+                METAL_COST=10,
+                POWER_COST=50,
+                INIT_POWER=50,
+                CARGO_SPACE=100,
+                BATTERY_CAPACITY=150,
+                CHARGE=1,
+                MOVE_COST=1,
+                RUBBLE_MOVEMENT_COST=0.05,
+                DIG_COST=5,
+                SELF_DESTRUCT_COST=5,
+                DIG_RUBBLE_REMOVED=2,
+                DIG_RESOURCE_GAIN=2,
+                DIG_LICHEN_REMOVED=10,
+                RUBBLE_AFTER_DESTRUCTION=1,
+                ACTION_QUEUE_POWER_COST=1,
+            ),
+            HEAVY=UnitConfig(
+                METAL_COST=100,
+                POWER_COST=500,
+                INIT_POWER=500,
+                CARGO_SPACE=1000,
+                BATTERY_CAPACITY=3000,
+                CHARGE=10,
+                MOVE_COST=20,
+                RUBBLE_MOVEMENT_COST=1,
+                DIG_COST=60,
+                SELF_DESTRUCT_COST=100,
+                DIG_RUBBLE_REMOVED=20,
+                DIG_RESOURCE_GAIN=20,
+                DIG_LICHEN_REMOVED=100,
+                RUBBLE_AFTER_DESTRUCTION=10,
+                ACTION_QUEUE_POWER_COST=10,
+            ),
+        )
+    )
 
     @classmethod
     def from_dict(cls, data):
-        light_robot = UnitConfig(**data["ROBOTS"]["LIGHT"])
-        heavy_robot = UnitConfig(**data["ROBOTS"]["HEAVY"])
-        return cls(LIGHT_ROBOT=light_robot, HEAVY_ROBOT=heavy_robot)
+        data["ROBOTS"]["LIGHT"] = UnitConfig(**data["ROBOTS"]["LIGHT"])
+        data["ROBOTS"]["HEAVY"] = UnitConfig(**data["ROBOTS"]["HEAVY"])
+        return cls(**data)

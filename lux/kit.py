@@ -120,6 +120,83 @@ def obs_to_game_state(step, env_cfg: EnvConfig, obs):
     )
 
 
+def json_obs_to_game_state(env_step, env_cfg, obs):
+
+    units = dict()
+    for agent in obs["units"]:
+        units[agent] = dict()
+        for unit_id in obs["units"][agent]:
+            unit_data = obs["units"][agent][unit_id]
+            cargo = UnitCargo(**unit_data["cargo"])
+            unit = Unit(
+                **unit_data,
+                unit_cfg=env_cfg.ROBOTS[unit_data["unit_type"]],
+                env_cfg=env_cfg
+            )
+            unit.cargo = cargo
+            units[agent][unit_id] = unit
+
+    factory_occupancy_map = np.ones_like(
+        obs["board"]["rubble"], dtype=int) * -1
+    factories = dict()
+    for agent in obs["factories"]:
+        factories[agent] = dict()
+        for unit_id in obs["factories"][agent]:
+            f_data = obs["factories"][agent][unit_id]
+            cargo = UnitCargo(**f_data["cargo"])
+            factory = Factory(
+                **f_data,
+                env_cfg=env_cfg
+            )
+            factory.cargo = cargo
+            factories[agent][unit_id] = factory
+            factory_occupancy_map[factory.pos_slice] = factory.strain_id
+    teams = dict()
+    for agent in obs["teams"]:
+        team_data = obs["teams"][agent]
+        faction = FactionTypes[team_data["faction"]]
+        teams[agent] = Team(**team_data, agent=agent)
+    if "valid_spawns_mask" in obs["board"].keys():
+        return GameState(
+            env_cfg=env_cfg,
+            env_steps=env_step,
+            board=Board(
+                rubble=np.array(obs["board"]["rubble"]),
+                ice=np.array(obs["board"]["ice"]),
+                ore=np.array(obs["board"]["ore"]),
+                lichen=np.array(obs["board"]["lichen"]),
+                lichen_strains=np.array(obs["board"]["lichen_strains"]),
+                factory_occupancy_map=factory_occupancy_map,
+                factories_per_team=np.array(
+                    obs["board"]["factories_per_team"]),
+                valid_spawns_mask=np.array(obs["board"]["valid_spawns_mask"])
+            ),
+            units=units,
+            factories=factories,
+            teams=teams
+        )
+    else:
+        return GameState(
+            env_cfg=env_cfg,
+            env_steps=env_step,
+            board=Board(
+                rubble=np.array(obs["board"]["rubble"]),
+                ice=np.array(obs["board"]["ice"]),
+                ore=np.array(obs["board"]["ore"]),
+                lichen=np.array(obs["board"]["lichen"]),
+                lichen_strains=np.array(obs["board"]["lichen_strains"]),
+                factory_occupancy_map=factory_occupancy_map,
+                factories_per_team=np.array(
+                    obs["board"]["factories_per_team"]),
+                valid_spawns_mask=np.zeros_like(
+                    np.array(np.array(obs["board"]["ice"])), dtype=bool)
+            ),
+            units=units,
+            factories=factories,
+            teams=teams
+        )
+
+
 @dataclass
 class Board:
     rubble: np.ndarray
@@ -138,7 +215,7 @@ class GameState:
     A GameState object at step env_steps. Copied from luxai_s2/state/state.py
     """
     env_steps: int
-    env_cfg: dict
+    env_cfg: EnvConfig
     board: Board
     units: Dict[str, Dict[str, Unit]] = field(default_factory=dict)
     factories: Dict[str, Dict[str, Factory]] = field(default_factory=dict)

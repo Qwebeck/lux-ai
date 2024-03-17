@@ -130,15 +130,24 @@ action_structure = tree.map_structure(lambda x: None, asdict(FullAct()))
 @dataclass
 class EnvParam:
     parser: Literal['sparse', 'dense', 'dense2'] = "dense"
-    rule_based_early_step: bool = False
-
+    rule_based_early_step: bool = True
+    MY_PLAYER_ID = 0
     map_size: int = 48
-    MAX_FACTORIES: int = 5
+    MIN_FACTORIES: int = 1
+    MAX_FACTORIES: int = 3
     num_turn_per_cycle: int = 50
     init_from_replay_ratio: float = 0.5
 
     act_dims: ActDims = ActDims()
     act_dims_mapping: FullAct = FullAct()
+
+    @classmethod
+    def my_player(cls):
+        return f"player_{cls.MY_PLAYER_ID}"
+
+    @classmethod
+    def opp_player(cls):
+        return f"player_{1 - cls.MY_PLAYER_ID}"
 
 
 @dataclass

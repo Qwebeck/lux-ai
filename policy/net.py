@@ -102,7 +102,7 @@ class ActionPreprocess(nn.Module):
 class Net(nn.Module):
 
     def __init__(self):
-        super(Net, self).__init__()
+        super().__init__()
         all_channel = ModelParam.all_channel
         self.action_preprocess = ActionPreprocess(
             ModelParam.action_emb_dim, ModelParam.action_queue_size)
@@ -171,11 +171,11 @@ class Net(nn.Module):
         for block in self.res_blocks:
             x = block(x)
         x = self.spectral_norm(x)
-        logp, action, entropy = self.actor(x, va, action)
+        logp, logits, action, entropy = self.actor(x, va, action)
         critic_value = self.critic_head(x)
         critic_value = torch.flatten(critic_value, start_dim=-3).mean(-1)
 
-        return logp, critic_value, action, entropy
+        return logp, logits, critic_value, action, entropy
 
     # behavior cloning
     def bc(self, global_feature, map_feature, action_feature, va, action):
