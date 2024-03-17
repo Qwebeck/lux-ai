@@ -1,5 +1,6 @@
 # Find some really good tutorial and implement single agent learning
 # https://docs.ray.io/en/latest/ray-core/examples/plot_pong_example.html
+from lux.kit import obs_to_game_state
 from collections import defaultdict
 from dataclasses import asdict
 from math import prod
@@ -11,6 +12,7 @@ from helpers.get_valid_actions import get_valid_actions
 from impl_config import EnvParam, ModelParam
 from luxai_s2_patch import install_patch
 from functools import partial
+from parsers.action_parser import ActionParser
 from parsers.feature_parser import FeatureParser
 import lux.kit
 import torch
@@ -43,17 +45,19 @@ from policy.spaces import get_observation_space, get_action_space
 MY_PLAYER = 'player_0'
 
 """
-My goal:
-- run an algorithm with the same observations
-- for this I would also need a way to mask invalid actions
-- In my case it would be multiagent learning
-"""
+I have some progress, but I can't say the model is training. 
+I also don't know how to make at multiagent and how to deploy it somewhere.
+---> I should have it fully working till the end of the next week
 
+---
+I should look for a job and therefore, should perpare my CV and apply to interesting positions. I still underprepared for positions I want to apply. 
 
-"""
-My current problem is that an AgentModule does not seems to accept shape of actions I am trying to use. 
-Why? 
-Because PPO loss calculation involves action_dist_inputs, but I only have actions.
+---
+I have a message from Lazarz and I don't know what he wants from me.
+
+---
+I want to contribute to the drones project
+
 """
 
 
@@ -151,7 +155,7 @@ class AgentModule(TorchRLModule):
             return self._forward_train(batch, **kwargs)
 
     def _forward_train(self, batch: NestedDict, **kwargs) -> Mapping[str, Any]:
-        logp, logits, value, action, entropy = self.agent.act(0, batch)
+        logp, logits, value, action, entropy = self.agent.act(batch)
         # sample_action = RayWrapper.get_action_space().sample()
         output = {}
         output['actions'] = action
@@ -206,15 +210,17 @@ class RayWrapper(gym.Env):
             asdict(self.lux_env.env_cfg))
         self.env_cfg = self.lux_env.env_cfg
 
-        self.player_id = EnvParam.my_player()
-        self.opponent_id = EnvParam.opp_player()
-        self.agent = EarlySetupPlayer(self.player_id, self.env_cfg)
-        self.opponent = EarlySetupPlayer(self.opponent_id, self.env_cfg)
+        self.my_player = EnvParam.my_player()
+        self.opp_player = EnvParam.opp_player()
+        self.agent = EarlySetupPlayer(self.my_player, self.env_cfg)
+        self.opponent = EarlySetupPlayer(self.opp_player, self.env_cfg)
+        self.feature_parser = FeatureParser()
+        self.action_parser = ActionParser()
+        self._step = 0
         # TODO unused, but throws error if not presetn
         self.observation_space = self.get_observation_space()
         self.action_space = self.get_action_space()
-        self.feature_parser = FeatureParser()
-        self._step = 0
+        self.last_raw_obs = None
 
     @classmethod
     def get_observation_space(cls):
@@ -226,26 +232,28 @@ class RayWrapper(gym.Env):
 
     def reset(self):
         _, obs = self._run_bidding_stage()
-        self._step = 0
 
+        self._step = 1  # should be 1 since one step is dedicated to bidding
         while self.lux_env.state.real_env_steps < 0:
             action = {
-                self.player_id: self.agent.act(
-                    self._step, obs[self.player_id]),
-                self.opponent_id: self.opponent.act(
-                    self._step, obs[self.opponent_id])
+                self.my_player: self.agent.act(
+                    self._step, obs[self.my_player]),
+                self.opp_player: self.opponent.act(
+                    self._step, obs[self.opp_player])
             }
 
-            obs, *other = self.lux_env.step(action)
+            self.last_raw_obs, *other = self.lux_env.step(action)
             self._step += 1
+
+        self.last_raw_obs = obs
 
         (my_obs, opp_obs), global_info = self.feature_parser.parse(
             obs, env_cfg=self.env_cfg)
         # return valid actions from here
         game_state = lux.kit.obs_to_game_state(
-            self._step, self.env_cfg, obs[self.player_id])
+            self._step, self.env_cfg, obs[self.my_player])
         valid_actions = get_valid_actions(
-            game_state, self.player_id)
+            game_state, self.my_player)
         return {'my_obs': my_obs, 'valid_actions': valid_actions}
     # {
     #         "my_obs": my_obs,
@@ -256,30 +264,38 @@ class RayWrapper(gym.Env):
     def _run_bidding_stage(self):
         obs, _ = self.lux_env.reset()
         my_bid = self.agent.act(
-            0, obs[self.player_id])
+            0, obs[self.my_player])
         opponent_bid = self.opponent.act(
-            0, obs[self.opponent_id])
+            0, obs[self.opp_player])
         obs, *other = self.lux_env.step({
-            self.player_id: my_bid,
-            self.opponent_id: opponent_bid
+            self.my_player: my_bid,
+            self.opp_player: opponent_bid
         })
-
+        self.last_raw_obs = obs
         game_state = lux.kit.obs_to_game_state(
-            0, self.env_cfg, obs[self.player_id])
-        return game_state.teams[self.player_id].place_first, obs
+            0, self.env_cfg, obs[self.my_player])
+        return game_state.teams[self.my_player].place_first, obs
 
-    def step(self, action: Any) -> Any:
+    def step(self, raw_action: Any) -> Any:
+        action, _ = self.action_parser.parse(
+            [
+                obs_to_game_state(self._step, self.env_cfg,
+                                  self.last_raw_obs[self.my_player]),
+            ],
+            [raw_action])
+
         obs, rewards, terminations, truncations, infos = self.lux_env.step(
-            {'player_0': dict(), 'player_1': dict()})
+            action)
 
+        self.last_raw_obs = obs
         self._step += 1
         (my_obs, opp_obs), global_info = self.feature_parser.parse(
             obs, env_cfg=self.env_cfg)
         # return valid actions from here
         game_state = lux.kit.obs_to_game_state(
-            self._step, self.env_cfg, obs[self.player_id])
-        valid_actions = get_valid_actions(game_state, self.player_id)
-        return {'my_obs': my_obs, 'valid_actions': valid_actions}, rewards[self.player_id], terminations[self.player_id] if self._step < 32 else True, infos[self.player_id]
+            self._step, self.env_cfg, obs[self.my_player])
+        valid_actions = get_valid_actions(game_state, self.my_player)
+        return {'my_obs': my_obs, 'valid_actions': valid_actions}, rewards[self.my_player], terminations[self.my_player] if self._step < 32 else True, infos[self.my_player]
 
     def render(self, mode: str = 'human') -> Any:
         return self.lux_env.render(mode)
@@ -313,7 +329,8 @@ def train():
     config = (config
               .rl_module(rl_module_spec=module_spec)
               .training(train_batch_size=10)
-              .rollouts(num_rollout_workers=0))
+              .rollouts(num_rollout_workers=0)
+              )
 #
 
     algo = config.build()

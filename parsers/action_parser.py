@@ -21,8 +21,10 @@ factory_adjacent_delta_xy = np.array([
     [-2, +0],
     [-2, +1],
 ])
-factory_adjacent_delta_xy = np.concatenate([factory_adjacent_delta_xy, -factory_adjacent_delta_xy])
-factory_adjacent_delta_xy = np.concatenate([factory_adjacent_delta_xy, factory_adjacent_delta_xy[:, ::-1]])
+factory_adjacent_delta_xy = np.concatenate(
+    [factory_adjacent_delta_xy, -factory_adjacent_delta_xy])
+factory_adjacent_delta_xy = np.concatenate(
+    [factory_adjacent_delta_xy, factory_adjacent_delta_xy[:, ::-1]])
 
 
 def ind2vec(ind, shape):
@@ -64,7 +66,8 @@ class ActionParser():
             }
             return action
 
-        my_turn = my_turn_to_place_factory(game_state.teams[player].place_first, game_state.env_steps)
+        my_turn = my_turn_to_place_factory(
+            game_state.teams[player].place_first, game_state.env_steps)
         if game_state.real_env_steps < 0:
             if my_turn:
                 spawn = raw_actions['factory_spawn']
@@ -94,14 +97,14 @@ class ActionParser():
         factories = game_state.factories[player]
         robots = game_state.units[player]
 
-        ## factories' action: int
+        # factories' action: int
         for unit_id, factory in factories.items():
             x, y = factory.pos
             raw_action = raw_actions["factory_act"][x, y]
             if raw_action != FactoryActType.DO_NOTHING:
                 player_actions[unit_id] = raw_action.item()
 
-        ## robots' action: 5d array
+        # robots' action: 5d array
         for unit_id, robot in robots.items():
             x, y = robot.pos
             action = raw_actions["unit_act"][:, x, y].copy()
@@ -134,7 +137,8 @@ class ActionParser():
                         target_space = env_cfg.max_transfer_amount
                         break
 
-                action[UnitActChannel.AMOUNT] = round(min(target_space, self_amount) * percentage)
+                action[UnitActChannel.AMOUNT] = round(
+                    min(target_space, self_amount) * percentage)
 
             if act_type == UnitActType.PICKUP:
                 robot_amount = get_resource_amount(robot, resource)
@@ -149,7 +153,8 @@ class ActionParser():
                         target_amount = get_resource_amount(target, resource)
                         break
 
-                action[UnitActChannel.AMOUNT] = round(min(target_amount, robot_space) * percentage)
+                action[UnitActChannel.AMOUNT] = round(
+                    min(target_amount, robot_space) * percentage)
 
             if act_type == UnitActType.DIG:
                 pass
@@ -166,17 +171,20 @@ class ActionParser():
             player_actions[unit_id] = action.astype(np.int32)
 
         # avoid collision
-        unit_map = np.full_like(game_state.board.rubble, fill_value=-1, dtype=np.int32)
+        unit_map = np.full_like(game_state.board.rubble,
+                                fill_value=-1, dtype=np.int32)
         for unit_id, robot in robots.items():
             action = player_actions.get(unit_id, None)
             if action is None \
-                or action[UnitActChannel.TYPE] != UnitActType.MOVE:
-                unit_map[robot.pos[0], robot.pos[1]] = int(unit_id[len('unit_'):])
+                    or action[UnitActChannel.TYPE] != UnitActType.MOVE:
+                unit_map[robot.pos[0], robot.pos[1]] = int(
+                    unit_id[len('unit_'):])
         for unit_id, robot in robots.items():
             action = player_actions.get(unit_id, None)
             if action is not None \
-                and action[UnitActChannel.TYPE] == UnitActType.MOVE:
-                new_pos = robot.pos + lux_actions.move_deltas[action[UnitActChannel.DIRECTION]]
+                    and action[UnitActChannel.TYPE] == UnitActType.MOVE:
+                new_pos = robot.pos + \
+                    lux_actions.move_deltas[action[UnitActChannel.DIRECTION]]
                 if unit_map[new_pos[0], new_pos[1]] != -1:
                     player_actions.pop(unit_id)
                     new_pos = robot.pos
@@ -200,13 +208,16 @@ class ActionParser():
 
     def parse(self, game_state, raw_actions):
         actions = {}
+        action_stats = []
         for player_id in [0, 1]:
             player = self.agents[player_id]
-            actions[player] = self._parse(game_state[player_id], player, raw_actions[player_id])
-
-        action_stats = [
-            self.action_stats(player, actions[player], game_state[i]) for i, player in enumerate(self.agents)
-        ]
+            if player_id < len(raw_actions):
+                actions[player] = self._parse(
+                    game_state[player_id], player, raw_actions[player_id])
+                action_stats.append(self.action_stats(
+                    player, actions[player], game_state[player_id]))
+            else:
+                actions[player] = {}
 
         return actions, action_stats
 
@@ -236,23 +247,25 @@ class ActionParser():
             x, y = factory.pos
             # valid build light
             if factory.cargo.metal >= env_cfg.ROBOTS['LIGHT'].METAL_COST\
-                and factory.power >= env_cfg.ROBOTS['LIGHT'].POWER_COST:
+                    and factory.power >= env_cfg.ROBOTS['LIGHT'].POWER_COST:
                 factory_va[FactoryActType.BUILD_LIGHT, x, y] = True
             # valid build heavy
             if factory.cargo.metal >= env_cfg.ROBOTS['HEAVY'].METAL_COST\
-                and factory.power >= env_cfg.ROBOTS['HEAVY'].POWER_COST:
+                    and factory.power >= env_cfg.ROBOTS['HEAVY'].POWER_COST:
                 factory_va[FactoryActType.BUILD_HEAVY, x, y] = True
             # valid grow lichen
-            lichen_strains_size = np.sum(board.lichen_strains == factory.strain_id)
+            lichen_strains_size = np.sum(
+                board.lichen_strains == factory.strain_id)
             # if game_state.real_env_steps >= env_cfg.max_episode_length - 500:
             #     survival_need = (env_cfg.max_episode_length - game_state.real_env_steps)
             #     survival_need *= env_cfg.FACTORY_WATER_CONSUMPTION
             # else:
             #     survival_need = 0
-            # water_cost = (lichen_strains_size + 1) // env_cfg.LICHEN_WATERING_COST_FACTOR + 1
+            # water_cost = (licheraw_actionsacn_strains_size + 1) // env_cfg.LICHEN_WATERING_COST_FACTOR + 1
             if factory.cargo.water >= (lichen_strains_size + 1) // env_cfg.LICHEN_WATERING_COST_FACTOR + 1:
                 adj_xy = factory.pos + factory_adjacent_delta_xy
-                adj_xy = adj_xy[(adj_xy >= 0).all(axis=1) & (adj_xy < EnvParam.map_size).all(axis=1)]
+                adj_xy = adj_xy[(adj_xy >= 0).all(axis=1) & (
+                    adj_xy < EnvParam.map_size).all(axis=1)]
                 adj_x, adj_y = adj_xy[:, 0], adj_xy[:, 1]
                 no_ruble = (board.rubble[adj_x, adj_y] == 0)
                 no_ice = (board.ice[adj_x, adj_y] == 0)
@@ -267,7 +280,8 @@ class ActionParser():
         # factory_va[FactoryActType.DO_NOTHING] = True
 
         # construct unit_map
-        unit_map = np.full_like(game_state.board.rubble, fill_value=-1, dtype=np.int32)
+        unit_map = np.full_like(game_state.board.rubble,
+                                fill_value=-1, dtype=np.int32)
         for unit_id, unit in game_state.units[player].items():
             x, y = unit.pos
             unit_map[x, y] = int(unit_id[len("unit_"):])
@@ -303,9 +317,11 @@ class ActionParser():
 
             # valid transfer
             valid_actions["unit_act"]["transfer"]['repeat'][0, x, y] = True
-            amounts = [unit.cargo.ice, unit.cargo.ore, unit.cargo.water, unit.cargo.metal, unit.power]
+            amounts = [unit.cargo.ice, unit.cargo.ore,
+                       unit.cargo.water, unit.cargo.metal, unit.power]
             for i, a in enumerate(amounts):
-                valid_actions["unit_act"]["transfer"]['resource'][i, x, y] = (a > 0)
+                valid_actions["unit_act"]["transfer"]['resource'][i, x, y] = (
+                    a > 0)
             for direction in range(1, len(move_deltas)):
                 target_pos = unit.pos + move_deltas[direction]
 
@@ -315,7 +331,8 @@ class ActionParser():
 
                 there_is_a_target = False
                 if (target_pos >= 0).all() and (target_pos < env_cfg.map_size).all():
-                    there_is_a_target = (unit_map[target_pos[0], target_pos[1]] != -1)
+                    there_is_a_target = (
+                        unit_map[target_pos[0], target_pos[1]] != -1)
                 if factory_under_unit(target_pos, game_state.factories[player]) is not None:
                     there_is_a_target = True
 
@@ -324,20 +341,22 @@ class ActionParser():
 
             # valid pickup
             valid_actions["unit_act"]["pickup"]['repeat'][0, x, y] = True
-            factory = factory_under_unit(unit.pos, game_state.factories[player])
+            factory = factory_under_unit(
+                unit.pos, game_state.factories[player])
             if factory is not None:
                 valid_actions["unit_act"]["act_type"][UnitActType.PICKUP, x, y] = True
                 amounts = [
                     factory.cargo.ice, factory.cargo.ore, factory.cargo.water, factory.cargo.metal, factory.power
                 ]
                 for i, a in enumerate(amounts):
-                    valid_actions["unit_act"]["pickup"]['resource'][i, x, y] = (a > 0)
+                    valid_actions["unit_act"]["pickup"]['resource'][i, x, y] = (
+                        a > 0)
 
             # valid dig
             if factory_under_unit(unit.pos, game_state.factories[player]) is None \
-                and unit.power - action_queue_cost >= unit.unit_cfg.DIG_COST:
+                    and unit.power - action_queue_cost >= unit.unit_cfg.DIG_COST:
                 if (board.lichen[x, y] > 0) or (board.rubble[x, y] > 0) \
-                    or (board.ice[x, y] > 0) or (board.ore[x, y] > 0):
+                        or (board.ice[x, y] > 0) or (board.ore[x, y] > 0):
                     valid_actions["unit_act"]["dig"]['repeat'][:, x, y] = True
 
             # valid selfdestruct
@@ -354,19 +373,19 @@ class ActionParser():
         # calculate va for the flattened action space
         move_va = valid_actions["unit_act"]["move"]
         move_va = valid_actions["unit_act"]["act_type"][UnitActType.MOVE][None, None] \
-                & move_va['direction'][:, None] \
-                & move_va['repeat'][None, :]  # 5*2=10
+            & move_va['direction'][:, None] \
+            & move_va['repeat'][None, :]  # 5*2=10
 
         transfer_va = valid_actions["unit_act"]["transfer"]
         transfer_va = valid_actions["unit_act"]["act_type"][UnitActType.TRANSFER][None, None, None] \
-                & transfer_va['direction'][:, None, None] \
-                & transfer_va['resource'][None, :, None] \
-                & transfer_va['repeat'][None, None, :] # 5*5*2=50
+            & transfer_va['direction'][:, None, None] \
+            & transfer_va['resource'][None, :, None] \
+            & transfer_va['repeat'][None, None, :]  # 5*5*2=50
 
         pickup_va = valid_actions["unit_act"]["pickup"]
         pickup_va = valid_actions["unit_act"]["act_type"][UnitActType.PICKUP][None, None] \
-                & pickup_va['resource'][:, None] \
-                & pickup_va['repeat'][None, :] # 5*2=10
+            & pickup_va['resource'][:, None] \
+            & pickup_va['repeat'][None, :]  # 5*2=10
 
         dig_va = valid_actions["unit_act"]["act_type"][UnitActType.DIG][None] \
             & valid_actions["unit_act"]["dig"]['repeat']  # 2
@@ -377,7 +396,8 @@ class ActionParser():
         recharge_va = valid_actions["unit_act"]["act_type"][UnitActType.RECHARGE][None] \
             & valid_actions["unit_act"]["recharge"]['repeat']  # 2
 
-        do_nothing_va = valid_actions["unit_act"]["act_type"][UnitActType.DO_NOTHING]  # 1
+        # 1
+        do_nothing_va = valid_actions["unit_act"]["act_type"][UnitActType.DO_NOTHING]
 
         valid_actions = {}
         if not EnvParam.rule_based_early_step:
@@ -387,11 +407,12 @@ class ActionParser():
                 bid_va = np.zeros(ActDims.bid, dtype=np.bool8)
 
             if game_state.env_steps != 0 \
-                and game_state.real_env_steps < 0 \
-                and my_turn_to_place_factory(game_state.teams[player].place_first, game_state.env_steps):
+                    and game_state.real_env_steps < 0 \
+                    and my_turn_to_place_factory(game_state.teams[player].place_first, game_state.env_steps):
                 factory_spawn = board.valid_spawns_mask
             else:
-                factory_spawn = np.zeros_like(board.valid_spawns_mask, dtype=np.bool8)
+                factory_spawn = np.zeros_like(
+                    board.valid_spawns_mask, dtype=np.bool8)
 
             valid_actions = {
                 "bid": bid_va,
@@ -473,13 +494,17 @@ class ActionParser():
                     if act_type in [UnitActType.TRANSFER, UnitActType.PICKUP]:
                         resource = ResourceType(act[2])
                         amount = act[3]
-                        action_stats[f"{act_type.name.lower()}_{resource.name.lower()}"].append(amount)
+                        action_stats[f"{act_type.name.lower()}_{resource.name.lower()}"].append(
+                            amount)
 
         action_stats['transfer_ice'] = np.array(action_stats['transfer_ice'])
         action_stats['transfer_ore'] = np.array(action_stats['transfer_ore'])
-        action_stats['transfer_water'] = np.array(action_stats['transfer_water'])
-        action_stats['transfer_metal'] = np.array(action_stats['transfer_metal'])
-        action_stats['transfer_power'] = np.array(action_stats['transfer_power'])
+        action_stats['transfer_water'] = np.array(
+            action_stats['transfer_water'])
+        action_stats['transfer_metal'] = np.array(
+            action_stats['transfer_metal'])
+        action_stats['transfer_power'] = np.array(
+            action_stats['transfer_power'])
         action_stats['pickup_ice'] = np.array(action_stats['pickup_ice'])
         action_stats['pickup_ore'] = np.array(action_stats['pickup_ore'])
         action_stats['pickup_water'] = np.array(action_stats['pickup_water'])

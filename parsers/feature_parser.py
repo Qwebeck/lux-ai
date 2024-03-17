@@ -260,7 +260,7 @@ class FeatureParser:
         for units in obs.units.values():
             for unit in units.values():
                 padding = [empty_action] * \
-                    [env_cfg.UNIT_ACTION_QUEUE_SIZE - len(unit.action_queue)]
+                    (env_cfg.UNIT_ACTION_QUEUE_SIZE - len(unit.action_queue))
                 actions = np.array(unit.action_queue + padding)
                 x, y = unit.pos
                 action_feature['unit_indicator'][x, y] = 1

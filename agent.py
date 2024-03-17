@@ -27,7 +27,7 @@ class Agent:
         self.env_cfg = env_config
         self.net = Net()
 
-    def act(self, step: int, obs, remainingOverageTime: int = 60):
+    def act(self, obs, remainingOverageTime: int = 60):
         obs = obs['obs']
         player_obs, valid_actions = obs['my_obs'], obs['valid_actions']
 
